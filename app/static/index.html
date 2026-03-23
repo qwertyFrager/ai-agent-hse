@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Учебный офис</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="eyebrow">RAG dashboard</p>
+          <h1>Учебный офис</h1>
+          <p class="muted">
+            Веб-интерфейс для вопросов по локальной базе документов и мониторинга последних запросов.
+          </p>
+        </div>
+
+        <section class="stats-grid" id="stats"></section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Действия</h2>
+          </div>
+          <button id="reindex-button" class="secondary-button">Переиндексировать `docs`</button>
+          <p class="tiny" id="reindex-status">Индексирование использует путь из `DATA_DIR`.</p>
+        </section>
+
+        <section class="panel history-panel">
+          <div class="panel-header">
+            <h2>Последние запросы</h2>
+          </div>
+          <div id="history" class="history-list"></div>
+        </section>
+      </aside>
+
+      <main class="main-panel">
+        <section class="hero">
+          <p class="eyebrow">Ask</p>
+          <h2>Задайте вопрос по документам</h2>
+          <p class="muted">
+            Ответ строится по найденным фрагментам из базы. Если LLM не настроен, система покажет релевантные источники.
+          </p>
+        </section>
+
+        <section class="composer panel">
+          <form id="ask-form">
+            <label class="input-label" for="question">Вопрос</label>
+            <textarea
+              id="question"
+              name="question"
+              rows="5"
+              placeholder="Например: когда проходит сессия 3 модуля и какие даты указаны в расписании?"
+              required
+            ></textarea>
+            <div class="composer-actions">
+              <label class="input-inline">
+                <span>Top K</span>
+                <input id="top-k" type="number" min="1" max="20" value="8" />
+              </label>
+              <button type="submit" class="primary-button">Спросить</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="results-grid">
+          <article class="panel answer-panel">
+            <div class="panel-header">
+              <h2>Ответ</h2>
+              <span id="answer-status" class="status-pill">Готов</span>
+            </div>
+            <pre id="answer" class="answer-output">Здесь появится ответ агента.</pre>
+          </article>
+
+          <article class="panel sources-panel">
+            <div class="panel-header">
+              <h2>Источники</h2>
+            </div>
+            <div id="sources" class="sources-list"></div>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Документы базы</h2>
+          </div>
+          <div id="docs" class="docs-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

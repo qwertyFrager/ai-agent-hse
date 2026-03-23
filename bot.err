@@ -1,0 +1,3 @@
+INFO:__main__:Auto indexing from ./docs before bot start
+INFO:__main__:Starting Telegram bot
+INFO:telegram.ext.Application:Application started
