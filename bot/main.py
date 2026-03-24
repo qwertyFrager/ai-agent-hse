@@ -26,7 +26,7 @@ from telegram.ext import (
 
 from app.db import Base, SessionLocal, engine, ensure_database_schema
 from app.history import request_history
-from app.indexer import index_path
+from app.indexer import index_path, normalize_stored_doc_paths
 from app.models import Doc
 from app.rag import answer_question
 
@@ -395,6 +395,8 @@ def main() -> None:
 
     Base.metadata.create_all(bind=engine)
     ensure_database_schema()
+    with SessionLocal() as session:
+        normalize_stored_doc_paths(session)
     if _should_auto_index():
         data_dir = os.getenv("DATA_DIR", "./docs")
         logger.info("Auto indexing from %s before bot start", data_dir)

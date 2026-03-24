@@ -1,10 +1,10 @@
 const statsEl = document.getElementById("stats");
-const historyEl = document.getElementById("history");
-const sourcesEl = document.getElementById("sources");
 const docsEl = document.getElementById("docs");
-const answerEl = document.getElementById("answer");
+const chatThreadEl = document.getElementById("chat-thread");
 const answerStatusEl = document.getElementById("answer-status");
-const reindexStatusEl = document.getElementById("reindex-status");
+const docsModalEl = document.getElementById("docs-modal");
+const docsModalCloseEl = document.getElementById("docs-modal-close");
+const openDocsModalButtonEl = document.getElementById("open-docs-modal-button");
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -19,6 +19,24 @@ function renderEmpty(container, text) {
   container.innerHTML = `<div class="empty-state">${escapeHtml(text)}</div>`;
 }
 
+function scrollChatToBottom() {
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  });
+}
+
+function dedupeSources(sources) {
+  const seen = new Set();
+  return (sources || []).filter((source) => {
+    const key = source.doc_id || source.file_path || source.title;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 function renderStats(stats) {
   statsEl.innerHTML = `
     <div class="stat-card">
@@ -30,8 +48,8 @@ function renderStats(stats) {
       <strong>${stats.chunks_count}</strong>
     </div>
     <div class="stat-card">
-      <span>Запросы</span>
-      <strong>${stats.recent_requests}</strong>
+      <span>Чат</span>
+      <strong>ON</strong>
     </div>
     <div class="stat-card">
       <span>Статус</span>
@@ -40,68 +58,73 @@ function renderStats(stats) {
   `;
 }
 
-function renderHistory(items) {
-  if (!items.length) {
-    renderEmpty(historyEl, "История пока пуста.");
-    return;
+function buildSourcesMarkup(sources) {
+  const uniqueSources = dedupeSources(sources);
+  if (!uniqueSources.length) {
+    return `<div class="empty-state">Источники не найдены для этого ответа.</div>`;
   }
 
-  historyEl.innerHTML = items
-    .map(
-      (item) => `
-        <article class="history-card">
-          <h3>${item.question}</h3>
-          <p class="meta">${new Date(item.asked_at).toLocaleString("ru-RU")}</p>
-          <p>${item.answer_preview}</p>
-        </article>
-      `,
-    )
-    .join("");
+  return `
+    <div class="message-sources">
+      <p class="message-sources-title">Источники</p>
+      <div class="sources-list">
+        ${uniqueSources
+          .map(
+            (source) => `
+              <article class="source-card">
+                <h3>${escapeHtml(source.title)}</h3>
+                <p>${escapeHtml(source.description || "")}</p>
+                <p class="meta">${escapeHtml(source.file_path)}</p>
+                <p>${escapeHtml(source.snippet)}</p>
+                <div class="source-actions">
+                  ${source.can_preview
+                    ? `
+                  <a
+                    class="secondary-button link-button"
+                    href="/api/docs/${encodeURIComponent(source.doc_id)}/file"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Открыть документ
+                  </a>`
+                    : ""}
+                  <a
+                    class="secondary-button link-button"
+                    href="/api/docs/${encodeURIComponent(source.doc_id)}/file?download=true"
+                  >
+                    Скачать
+                  </a>
+                </div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
 }
 
-function renderSources(sources) {
-  if (!sources.length) {
-    renderEmpty(sourcesEl, "Источники появятся после первого ответа.");
-    return;
-  }
+function appendMessage({ role, text, sources = [], pending = false }) {
+  const wrapper = document.createElement("article");
+  wrapper.className = `message message-${role}`;
 
-  sourcesEl.innerHTML = sources
-    .map(
-      (source) => `
-        <article class="source-card">
-          <h3>${escapeHtml(source.title)}</h3>
-          <p>${escapeHtml(source.description || "")}</p>
-          <p class="meta">${escapeHtml(source.file_path)}</p>
-          <p class="meta">Фрагмент #${escapeHtml(source.chunk_index)}</p>
-          <p>${escapeHtml(source.snippet)}</p>
-          <div class="source-actions">
-            ${source.can_preview
-              ? `
-            <a
-              class="secondary-button link-button"
-              href="/api/docs/${encodeURIComponent(source.doc_id)}/file"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Открыть документ
-            </a>`
-              : ""}
-            <a
-              class="secondary-button link-button"
-              href="/api/docs/${encodeURIComponent(source.doc_id)}/file?download=true"
-            >
-              Скачать
-            </a>
-          </div>
-        </article>
-      `,
-    )
-    .join("");
+  const roleLabel = role === "user" ? "Вы" : "Ассистент";
+  wrapper.innerHTML = `
+    <div class="message-role">${roleLabel}</div>
+    <div class="message-card">
+      <pre class="answer-output">${escapeHtml(text)}</pre>
+      ${role === "assistant" && !pending ? buildSourcesMarkup(sources) : ""}
+    </div>
+  `;
+
+  chatThreadEl.appendChild(wrapper);
+  scrollChatToBottom();
+  return wrapper;
 }
 
 function renderDocs(items) {
   if (!items.length) {
-    renderEmpty(docsEl, "Описание документов появится после индексации.");
+    renderEmpty(docsEl, "Документы пока не найдены.");
     return;
   }
 
@@ -143,29 +166,53 @@ async function loadStats() {
   renderStats(stats);
 }
 
-async function loadHistory() {
-  const response = await fetch("/api/history");
-  const items = await response.json();
-  renderHistory(items);
-}
-
 async function loadDocs() {
   const response = await fetch("/api/docs");
   const items = await response.json();
   renderDocs(items);
 }
 
+function openDocsModal() {
+  docsModalEl.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closeDocsModal() {
+  docsModalEl.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+function handleDocsModalBackdrop(event) {
+  if (event.target === docsModalEl) {
+    closeDocsModal();
+  }
+}
+
+function handleEscape(event) {
+  if (event.key === "Escape" && !docsModalEl.classList.contains("hidden")) {
+    closeDocsModal();
+  }
+}
+
 async function askQuestion(event) {
   event.preventDefault();
-  const question = document.getElementById("question").value.trim();
+  const questionInput = document.getElementById("question");
+  const question = questionInput.value.trim();
   const topK = Number(document.getElementById("top-k").value || 8);
   if (!question) {
     return;
   }
 
+  appendMessage({ role: "user", text: question });
+  const pendingMessage = appendMessage({
+    role: "assistant",
+    text: "Ищу релевантные фрагменты и формирую ответ...",
+    pending: true,
+  });
+
   answerStatusEl.textContent = "Ищу";
   answerStatusEl.classList.add("pending");
-  answerEl.textContent = "Поиск и формирование ответа...";
+  questionInput.value = "";
 
   const response = await fetch("/ask", {
     method: "POST",
@@ -174,32 +221,30 @@ async function askQuestion(event) {
   });
   const payload = await response.json();
 
-  answerEl.textContent = payload.answer;
-  renderSources(payload.sources || []);
+  if (!response.ok) {
+    pendingMessage.querySelector(".answer-output").textContent =
+      payload.detail || "Не удалось получить ответ.";
+    answerStatusEl.textContent = "Ошибка";
+    answerStatusEl.classList.remove("pending");
+    return;
+  }
+
+  pendingMessage.querySelector(".message-card").innerHTML = `
+    <pre class="answer-output">${escapeHtml(payload.answer)}</pre>
+    ${buildSourcesMarkup(payload.sources || [])}
+  `;
   answerStatusEl.textContent = "Готов";
   answerStatusEl.classList.remove("pending");
 
-  await Promise.all([loadHistory(), loadStats()]);
-}
-
-async function reindex() {
-  reindexStatusEl.textContent = "Индексирование запущено...";
-  const response = await fetch("/index", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  });
-  const payload = await response.json();
-  reindexStatusEl.textContent =
-    `Новых: ${payload.indexed_docs}, обновлено: ${payload.updated_docs}, пропущено: ${payload.skipped_docs}`;
-  await Promise.all([loadStats(), loadHistory(), loadDocs()]);
+  await loadStats();
 }
 
 document.getElementById("ask-form").addEventListener("submit", askQuestion);
-document.getElementById("reindex-button").addEventListener("click", reindex);
+openDocsModalButtonEl.addEventListener("click", openDocsModal);
+docsModalCloseEl.addEventListener("click", closeDocsModal);
+docsModalEl.addEventListener("click", handleDocsModalBackdrop);
+document.addEventListener("keydown", handleEscape);
 
-renderEmpty(sourcesEl, "Источники появятся после первого ответа.");
-renderEmpty(docsEl, "Описание документов появится после индексации.");
+renderEmpty(docsEl, "Загружаем список документов...");
 loadStats();
-loadHistory();
 loadDocs();

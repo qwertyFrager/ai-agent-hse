@@ -4,65 +4,44 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Учебный офис • Админ</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260325-chat-center-3" />
   </head>
   <body>
-    <div class="page-shell">
-      <aside class="sidebar">
-        <div class="brand">
+    <div class="page-shell admin-page-shell">
+      <div class="admin-canvas">
+        <header class="admin-header">
           <p class="eyebrow">Admin dashboard</p>
           <h1>Управление документами</h1>
           <p class="muted">
             Закрытая панель для загрузки, редактирования и удаления документов базы знаний.
           </p>
-        </div>
+        </header>
 
-        <section class="stats-grid" id="admin-stats"></section>
+        <section class="stats-grid admin-stats-grid" id="admin-stats"></section>
 
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Сессия</h2>
-            <span id="session-badge" class="status-pill">Проверка</span>
-          </div>
-          <p class="tiny" id="session-status">Проверяем доступ к админ-панели.</p>
-          <div class="button-row">
-            <a href="/" class="secondary-button link-button">Пользовательская панель</a>
-            <button id="logout-button" class="secondary-button" type="button">Выйти</button>
-          </div>
+        <section class="admin-top-grid">
+          <section class="panel admin-session-panel">
+            <div class="panel-header">
+              <h2>Сессия</h2>
+              <span id="session-badge" class="status-pill">Проверка</span>
+            </div>
+            <p class="tiny" id="session-status">Проверяем доступ к админ-панели.</p>
+            <div class="button-row">
+              <a href="/" class="secondary-button link-button">Пользовательская панель</a>
+              <button id="logout-button" class="secondary-button hidden" type="button">Выйти</button>
+            </div>
+          </section>
+
+          <section class="hero admin-access-panel">
+            <p class="eyebrow">Access</p>
+            <h2>Административный доступ</h2>
+            <p class="muted">
+              Для CRUD-операций используется отдельная авторизация. Публичный дашборд и закрытая панель разделены.
+            </p>
+          </section>
         </section>
 
-        <section id="upload-panel" class="panel hidden">
-          <div class="panel-header">
-            <h2>Загрузка</h2>
-          </div>
-          <form id="upload-form" class="stack-form">
-            <label class="input-label" for="upload-file">Файл</label>
-            <input id="upload-file" name="file" type="file" required />
-
-            <label class="input-label" for="upload-description">Описание</label>
-            <textarea
-              id="upload-description"
-              name="description"
-              rows="4"
-              placeholder="Необязательно. Если пусто, описание сгенерирует индексатор."
-            ></textarea>
-
-            <button type="submit" class="primary-button">Загрузить документ</button>
-          </form>
-          <p class="tiny" id="upload-status">Поддерживаются pdf, docx, dotx, xlsx, xls, csv.</p>
-        </section>
-      </aside>
-
-      <main class="main-panel">
-        <section class="hero">
-          <p class="eyebrow">Access</p>
-          <h2>Административный доступ</h2>
-          <p class="muted">
-            Для CRUD-операций используется отдельная авторизация. Публичный дашборд и закрытая панель разделены.
-          </p>
-        </section>
-
-        <section id="login-panel" class="panel">
+        <section id="login-panel" class="panel admin-form-panel">
           <div class="panel-header">
             <h2>Вход</h2>
           </div>
@@ -84,7 +63,40 @@
           <p class="tiny" id="login-status">Вход разрешён только при настроенных `ADMIN_*` переменных.</p>
         </section>
 
-        <section id="workspace-panel" class="panel hidden">
+        <section class="admin-tools-grid">
+          <section id="upload-panel" class="panel hidden">
+            <div class="panel-header">
+              <h2>Загрузка</h2>
+            </div>
+            <form id="upload-form" class="stack-form">
+              <label class="input-label" for="upload-file">Файл</label>
+              <input id="upload-file" name="file" type="file" required />
+
+              <label class="input-label" for="upload-description">Описание</label>
+              <textarea
+                id="upload-description"
+                name="description"
+                rows="4"
+                placeholder="Необязательно. Если пусто, описание сгенерирует индексатор."
+              ></textarea>
+
+              <button type="submit" class="primary-button">Загрузить документ</button>
+            </form>
+            <p class="tiny" id="upload-status">Поддерживаются pdf, docx, dotx, xlsx, xls, csv.</p>
+          </section>
+
+          <section id="reindex-panel" class="panel hidden">
+            <div class="panel-header">
+              <h2>Индексация</h2>
+            </div>
+            <button id="admin-reindex-button" class="secondary-button" type="button">
+              Переиндексировать `docs`
+            </button>
+            <p class="tiny" id="admin-reindex-status">Запускает повторную индексацию каталога `DATA_DIR`.</p>
+          </section>
+        </section>
+
+        <section id="workspace-panel" class="panel hidden admin-workspace-panel">
           <div class="panel-header">
             <h2>Документы</h2>
             <button id="refresh-docs-button" class="secondary-button" type="button">Обновить список</button>
@@ -92,7 +104,7 @@
           <p class="tiny">Карточки показывают краткое описание. Подробности и редактирование открываются в отдельном окне.</p>
           <div id="admin-docs" class="admin-docs-list"></div>
         </section>
-      </main>
+      </div>
     </div>
 
     <div id="doc-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="doc-modal-title">
@@ -133,6 +145,6 @@
       </div>
     </div>
 
-    <script src="/static/admin.js"></script>
+    <script src="/static/admin.js?v=20260325-chat-center-3"></script>
   </body>
 </html>

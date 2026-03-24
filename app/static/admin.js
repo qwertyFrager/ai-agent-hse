@@ -1,11 +1,14 @@
 const statsEl = document.getElementById("admin-stats");
 const sessionBadgeEl = document.getElementById("session-badge");
 const sessionStatusEl = document.getElementById("session-status");
+const logoutButtonEl = document.getElementById("logout-button");
 const loginPanelEl = document.getElementById("login-panel");
 const workspacePanelEl = document.getElementById("workspace-panel");
 const uploadPanelEl = document.getElementById("upload-panel");
+const reindexPanelEl = document.getElementById("reindex-panel");
 const loginStatusEl = document.getElementById("login-status");
 const uploadStatusEl = document.getElementById("upload-status");
+const reindexStatusEl = document.getElementById("admin-reindex-status");
 const docsEl = document.getElementById("admin-docs");
 
 const modalEl = document.getElementById("doc-modal");
@@ -73,6 +76,7 @@ function renderStats({ enabled, authenticated, username }) {
 function setSessionState(session) {
   renderStats(session);
   if (!session.enabled) {
+    logoutButtonEl.classList.add("hidden");
     sessionBadgeEl.textContent = "OFF";
     sessionStatusEl.textContent =
       "Админ-доступ не настроен. Заполни ADMIN_USERNAME, ADMIN_PASSWORD и ADMIN_SESSION_SECRET.";
@@ -80,24 +84,29 @@ function setSessionState(session) {
     loginPanelEl.classList.remove("hidden");
     workspacePanelEl.classList.add("hidden");
     uploadPanelEl.classList.add("hidden");
+    reindexPanelEl.classList.add("hidden");
     closeDocModal();
     return;
   }
 
   if (session.authenticated) {
+    logoutButtonEl.classList.remove("hidden");
     sessionBadgeEl.textContent = "Доступ";
     sessionStatusEl.textContent = `Выполнен вход как ${session.username}. CRUD-эндпоинты разблокированы.`;
     loginPanelEl.classList.add("hidden");
     workspacePanelEl.classList.remove("hidden");
     uploadPanelEl.classList.remove("hidden");
+    reindexPanelEl.classList.remove("hidden");
     return;
   }
 
+  logoutButtonEl.classList.add("hidden");
   sessionBadgeEl.textContent = "Вход";
   sessionStatusEl.textContent = "Требуется авторизация администратора.";
   loginPanelEl.classList.remove("hidden");
   workspacePanelEl.classList.add("hidden");
   uploadPanelEl.classList.add("hidden");
+  reindexPanelEl.classList.add("hidden");
   closeDocModal();
 }
 
@@ -234,6 +243,22 @@ async function handleUpload(event) {
   }
 }
 
+async function handleReindex() {
+  reindexStatusEl.textContent = "Индексирование запущено...";
+  try {
+    const payload = await getJson("/admin/api/reindex", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    reindexStatusEl.textContent =
+      `Новых: ${payload.indexed_docs}, обновлено: ${payload.updated_docs}, пропущено: ${payload.skipped_docs}`;
+    await loadDocs();
+  } catch (error) {
+    reindexStatusEl.textContent = error.message;
+  }
+}
+
 function handleDocAction(event) {
   const button = event.target.closest("[data-action]");
   const card = event.target.closest("[data-doc-id]");
@@ -305,6 +330,7 @@ function handleEscape(event) {
 document.getElementById("login-form").addEventListener("submit", handleLogin);
 document.getElementById("logout-button").addEventListener("click", handleLogout);
 document.getElementById("upload-form").addEventListener("submit", handleUpload);
+document.getElementById("admin-reindex-button").addEventListener("click", handleReindex);
 document.getElementById("refresh-docs-button").addEventListener("click", loadDocs);
 docsEl.addEventListener("click", handleDocAction);
 modalCloseEl.addEventListener("click", closeDocModal);

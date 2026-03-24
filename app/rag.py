@@ -81,10 +81,15 @@ def _build_context(rows) -> str:
 
 def _rows_to_sources(rows) -> List[SourceItem]:
     sources: List[SourceItem] = []
+    seen_doc_ids = set()
     for row in rows:
+        doc_id = row["doc_id"]
+        if doc_id in seen_doc_ids:
+            continue
+        seen_doc_ids.add(doc_id)
         sources.append(
             SourceItem(
-                doc_id=row["doc_id"],
+                doc_id=doc_id,
                 can_preview=can_preview_in_browser(row["file_path"]),
                 title=row["title"],
                 description=row["description"],

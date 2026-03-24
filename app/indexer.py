@@ -27,6 +27,50 @@ def get_data_dir(path: str | None = None) -> Path:
     return Path(path or os.getenv("DATA_DIR", "./docs")).resolve()
 
 
+def get_storage_path(file_path: str | Path, data_dir: str | Path | None = None) -> str:
+    data_root = get_data_dir(str(data_dir) if data_dir is not None else None)
+    path_text = str(file_path).strip()
+    if not path_text:
+        return ""
+
+    candidate = Path(path_text)
+    try:
+        resolved_candidate = candidate.resolve()
+    except OSError:
+        resolved_candidate = candidate
+
+    try:
+        return resolved_candidate.relative_to(data_root).as_posix()
+    except ValueError:
+        pass
+
+    normalized = path_text.replace("\\", "/").lstrip("./")
+    marker = f"/{data_root.name}/"
+    if marker in normalized:
+        return normalized.split(marker, 1)[1]
+    if normalized.startswith(f"{data_root.name}/"):
+        return normalized[len(data_root.name) + 1 :]
+    return normalized
+
+
+def resolve_storage_path(file_path: str | Path, data_dir: str | Path | None = None) -> Path:
+    data_root = get_data_dir(str(data_dir) if data_dir is not None else None)
+    path_text = str(file_path).strip()
+    candidate = Path(path_text)
+
+    if candidate.is_absolute() and candidate.exists():
+        return candidate.resolve()
+
+    storage_path = get_storage_path(path_text, data_root)
+    resolved = (data_root / storage_path).resolve()
+    if resolved.exists():
+        return resolved
+
+    if candidate.is_absolute():
+        return candidate
+    return resolved
+
+
 def _file_checksum(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file_handle:
@@ -221,9 +265,9 @@ def _upsert_doc(
     file_path: Path,
     checksum: str,
 ) -> Tuple[Doc, str]:
-    resolved_path = str(file_path.resolve())
+    storage_path = get_storage_path(file_path)
     existing = session.execute(
-        select(Doc).where(Doc.file_path == resolved_path)
+        select(Doc).where(Doc.file_path == storage_path)
     ).scalar_one_or_none()
     title = file_path.stem
     file_type = file_path.suffix.lower().lstrip(".")
@@ -245,7 +289,7 @@ def _upsert_doc(
     document = Doc(
         title=title,
         description="",
-        file_path=resolved_path,
+        file_path=storage_path,
         file_type=file_type,
         checksum=checksum,
         status="active",
@@ -301,6 +345,53 @@ def _index_single_file(session: Session, file_path: Path) -> str:
     return action
 
 
+def normalize_stored_doc_paths(session: Session) -> dict[str, int]:
+    docs = (
+        session.execute(select(Doc).order_by(Doc.updated_at.desc(), Doc.id.desc()))
+        .scalars()
+        .all()
+    )
+    if not docs:
+        return {"updated_paths": 0, "deleted_duplicates": 0}
+
+    grouped: Dict[str, List[Doc]] = {}
+    for doc in docs:
+        storage_path = get_storage_path(doc.file_path)
+        grouped.setdefault(storage_path, []).append(doc)
+
+    updated_paths = 0
+    deleted_duplicates = 0
+
+    for storage_path, items in grouped.items():
+        for duplicate in items[1:]:
+            session.delete(duplicate)
+            deleted_duplicates += 1
+
+    if deleted_duplicates:
+        session.flush()
+
+    for storage_path, items in grouped.items():
+        keeper = items[0]
+        if keeper.file_path != storage_path:
+            keeper.file_path = storage_path
+            updated_paths += 1
+
+    if updated_paths or deleted_duplicates:
+        session.commit()
+        logger.info(
+            "Normalized document paths: updated=%s deleted_duplicates=%s",
+            updated_paths,
+            deleted_duplicates,
+        )
+    else:
+        session.rollback()
+
+    return {
+        "updated_paths": updated_paths,
+        "deleted_duplicates": deleted_duplicates,
+    }
+
+
 def index_file(path: str | Path) -> Dict[str, int]:
     Base.metadata.create_all(bind=engine)
     ensure_database_schema()
@@ -316,6 +407,7 @@ def index_file(path: str | Path) -> Dict[str, int]:
         raise ValueError(f"Unsupported file type: {file_path.suffix.lower()}")
 
     with SessionLocal() as session:
+        normalize_stored_doc_paths(session)
         action = _index_single_file(session, file_path)
 
     if action in {"updated", "metadata"}:
@@ -338,6 +430,7 @@ def index_path(path: str) -> Dict[str, int]:
         return counts
 
     with SessionLocal() as session:
+        normalize_stored_doc_paths(session)
         for file_path in _iter_files(root):
             try:
                 action = _index_single_file(session, file_path)

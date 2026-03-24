@@ -21,10 +21,18 @@ from .admin_auth import (
     require_admin,
     require_admin_configured,
 )
-from .db import Base, engine, ensure_database_schema, get_session
+from .db import Base, SessionLocal, engine, ensure_database_schema, get_session
 from .file_access import can_preview_in_browser, guess_media_type
 from .history import request_history
-from .indexer import SUPPORTED_EXTENSIONS, get_data_dir, index_file, index_path
+from .indexer import (
+    SUPPORTED_EXTENSIONS,
+    get_data_dir,
+    get_storage_path,
+    index_file,
+    index_path,
+    normalize_stored_doc_paths,
+    resolve_storage_path,
+)
 from .models import Chunk, Doc
 from .rag import answer_question
 from .schemas import (
@@ -108,6 +116,8 @@ def _dump_model(item):
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_database_schema()
+    with SessionLocal() as session:
+        normalize_stored_doc_paths(session)
     if _should_auto_index():
         data_dir = os.getenv("DATA_DIR", "./docs")
         logger.info("Auto indexing from %s", data_dir)
@@ -168,7 +178,7 @@ def document_file(doc_id: UUID, download: bool = False, db: Session = Depends(ge
     if doc.status != "active":
         raise HTTPException(status_code=404, detail="Document not found")
 
-    file_path = Path(doc.file_path)
+    file_path = resolve_storage_path(doc.file_path)
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Document file not found")
 
@@ -184,6 +194,15 @@ def document_file(doc_id: UUID, download: bool = False, db: Session = Depends(ge
 
 @app.post("/index", response_model=IndexResponse)
 def index(payload: IndexRequest) -> IndexResponse:
+    path = payload.path or os.getenv("DATA_DIR", "./docs")
+    return IndexResponse(**index_path(path))
+
+
+@app.post("/admin/api/reindex", response_model=IndexResponse)
+def admin_reindex(
+    payload: IndexRequest,
+    _: str = Depends(require_admin),
+) -> IndexResponse:
     path = payload.path or os.getenv("DATA_DIR", "./docs")
     return IndexResponse(**index_path(path))
 
@@ -283,7 +302,8 @@ async def admin_create_document(
     finally:
         await file.close()
 
-    doc = db.execute(select(Doc).where(Doc.file_path == str(target_path))).scalar_one_or_none()
+    storage_path = get_storage_path(target_path)
+    doc = db.execute(select(Doc).where(Doc.file_path == storage_path)).scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=500, detail="Document was uploaded but not indexed")
 
@@ -325,7 +345,7 @@ def admin_delete_document(
     db: Session = Depends(get_session),
 ) -> Response:
     doc = _get_doc_or_404(db, doc_id)
-    file_path = Path(doc.file_path)
+    file_path = resolve_storage_path(doc.file_path)
 
     db.delete(doc)
     db.commit()

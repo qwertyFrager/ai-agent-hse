@@ -4,93 +4,120 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Учебный офис</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260325-chat-center-3" />
   </head>
   <body>
     <div class="page-shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <p class="eyebrow">RAG dashboard</p>
-          <h1>Учебный офис</h1>
-          <p class="muted">
-            Веб-интерфейс для вопросов по локальной базе документов и мониторинга последних запросов.
-          </p>
-        </div>
+      <main
+        class="app-layout"
+        style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;align-items:start;"
+      >
+        <aside class="sidebar" style="display:flex;flex-direction:column;gap:20px;">
+          <section class="panel brand-panel">
+            <p class="eyebrow">Учебный офис</p>
+            <h2>Навигация и действия</h2>
+            <p class="muted">
+              Слева находятся служебные панели. Основной сценарий работы расположен в центре страницы в формате чата.
+            </p>
+          </section>
 
-        <section class="stats-grid" id="stats"></section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Действия</h2>
-          </div>
-          <button id="reindex-button" class="secondary-button">Переиндексировать `docs`</button>
-          <a href="/admin" class="secondary-button link-button">Открыть админ-панель</a>
-          <p class="tiny" id="reindex-status">Индексирование использует путь из `DATA_DIR`.</p>
-        </section>
-
-        <section class="panel history-panel">
-          <div class="panel-header">
-            <h2>Последние запросы</h2>
-          </div>
-          <div id="history" class="history-list"></div>
-        </section>
-      </aside>
-
-      <main class="main-panel">
-        <section class="hero">
-          <p class="eyebrow">Ask</p>
-          <h2>Задайте вопрос по документам</h2>
-          <p class="muted">
-            Ответ строится по найденным фрагментам из базы. Если LLM не настроен, система покажет релевантные источники.
-          </p>
-        </section>
-
-        <section class="composer panel">
-          <form id="ask-form">
-            <label class="input-label" for="question">Вопрос</label>
-            <textarea
-              id="question"
-              name="question"
-              rows="5"
-              placeholder="Например: когда проходит сессия 3 модуля и какие даты указаны в расписании?"
-              required
-            ></textarea>
-            <div class="composer-actions">
-              <label class="input-inline">
-                <span>Top K</span>
-                <input id="top-k" type="number" min="1" max="20" value="8" />
-              </label>
-              <button type="submit" class="primary-button">Спросить</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="results-grid">
-          <article class="panel answer-panel">
+          <section class="panel">
             <div class="panel-header">
-              <h2>Ответ</h2>
-              <span id="answer-status" class="status-pill">Готов</span>
+              <h2>Система</h2>
             </div>
-            <pre id="answer" class="answer-output">Здесь появится ответ агента.</pre>
-          </article>
+            <p class="muted">
+              Ответы строятся по найденным фрагментам. Если LLM не настроен, сервис всё равно покажет найденные материалы.
+            </p>
+            <div class="stats-grid" id="stats"></div>
+          </section>
 
-          <article class="panel sources-panel">
+          <section class="panel">
             <div class="panel-header">
-              <h2>Источники</h2>
+              <h2>Действия</h2>
             </div>
-            <div id="sources" class="sources-list"></div>
-          </article>
-        </section>
+            <div class="button-stack">
+              <button id="open-docs-modal-button" class="secondary-button" type="button">Документы базы</button>
+              <a href="/admin" class="secondary-button link-button">Открыть админ-панель</a>
+            </div>
+            <p class="tiny">Переиндексация и управление документами перенесены в административную панель.</p>
+          </section>
+        </aside>
 
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Документы базы</h2>
-          </div>
-          <div id="docs" class="docs-list"></div>
+        <section class="chat-stage" style="display:flex;justify-content:center;min-width:0;">
+          <section class="chat-panel" style="display:flex;flex-direction:column;gap:20px;width:min(100%,960px);min-width:0;">
+            <header class="hero">
+              <p class="eyebrow">Чат</p>
+              <h1>Чат по базе документов</h1>
+              <p class="muted">
+                Интерфейс выглядит как чат, но не сохраняет контекст диалога: каждый вопрос отправляется как отдельный запрос к базе документов.
+              </p>
+              <div class="hero-meta">
+                <span id="answer-status" class="status-pill">Готов</span>
+                <span class="tiny">Источники прикрепляются к каждому ответу отдельно.</span>
+              </div>
+            </header>
+
+            <section id="chat-thread" class="chat-thread" aria-live="polite">
+              <article class="message message-assistant message-welcome">
+                <div class="message-role">Ассистент</div>
+                <div class="message-card">
+                  <p class="message-text">
+                    Задайте вопрос по локальной базе документов. Для надёжности формулируйте каждый запрос полностью, без расчёта на память предыдущих сообщений.
+                  </p>
+                </div>
+              </article>
+            </section>
+
+            <section class="composer-shell">
+              <div class="context-warning">
+                Контекст не переносится между сообщениями. Если вопрос зависит от прошлого ответа, повторите нужные детали в новом сообщении.
+              </div>
+
+              <form id="ask-form" class="composer-form">
+                <label class="sr-only" for="question">Вопрос</label>
+                <textarea
+                  id="question"
+                  name="question"
+                  rows="3"
+                  placeholder="Например: когда проходит сессия 3 модуля и какие даты указаны в расписании?"
+                  required
+                ></textarea>
+                <div class="composer-actions">
+                  <label class="input-inline">
+                    <span>Top K</span>
+                    <input id="top-k" type="number" min="1" max="20" value="8" />
+                  </label>
+                  <button type="submit" class="primary-button">Отправить</button>
+                </div>
+              </form>
+            </section>
+          </section>
         </section>
       </main>
     </div>
 
-    <script src="/static/app.js"></script>
+    <div
+      id="docs-modal"
+      class="modal-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="docs-modal-title"
+    >
+      <div class="modal-card">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Каталог</p>
+            <h2 id="docs-modal-title">Документы базы</h2>
+          </div>
+          <button id="docs-modal-close" class="secondary-button" type="button">Закрыть</button>
+        </div>
+        <p class="muted">
+          Здесь перечислены документы, по которым строятся ответы. Для управления составом базы используйте админ-панель.
+        </p>
+        <div id="docs" class="docs-list"></div>
+      </div>
+    </div>
+
+    <script src="/static/app.js?v=20260325-chat-center-3"></script>
   </body>
 </html>
