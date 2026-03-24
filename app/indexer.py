@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
@@ -20,6 +21,10 @@ from .utils_text import chunk_text, normalize_whitespace
 logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".dotx", ".xlsx", ".xls", ".csv"}
+
+
+def get_data_dir(path: str | None = None) -> Path:
+    return Path(path or os.getenv("DATA_DIR", "./docs")).resolve()
 
 
 def _file_checksum(path: Path) -> str:
@@ -224,7 +229,8 @@ def _upsert_doc(
     file_type = file_path.suffix.lower().lstrip(".")
 
     if existing:
-        existing.title = title
+        if not (existing.title or "").strip():
+            existing.title = title
         existing.file_type = file_type
         existing.status = "active"
 
@@ -249,6 +255,78 @@ def _upsert_doc(
     return document, "new"
 
 
+def _index_single_file(session: Session, file_path: Path) -> str:
+    checksum = _file_checksum(file_path)
+    doc, action = _upsert_doc(session, file_path, checksum)
+    if action == "skipped":
+        session.commit()
+        return action
+
+    content = normalize_whitespace(_extract_text(file_path))
+    if not content:
+        session.rollback()
+        raise ValueError(f"No extractable text in {file_path}")
+
+    doc.description = _generate_description(doc.title, doc.file_type, content)
+
+    if action == "metadata":
+        session.commit()
+        logger.info("Refreshed metadata for %s", file_path.name)
+        return action
+
+    if action == "updated":
+        session.query(Chunk).filter(Chunk.doc_id == doc.id).delete(synchronize_session=False)
+
+    chunks = chunk_text(content)
+    if not chunks:
+        session.rollback()
+        raise ValueError(f"No chunks produced for {file_path}")
+
+    for index, chunk in enumerate(chunks):
+        session.add(
+            Chunk(
+                doc_id=doc.id,
+                chunk_index=index,
+                content=chunk,
+            )
+        )
+
+    session.commit()
+    logger.info(
+        "Indexed %s as %s with %s chunks",
+        file_path.name,
+        action,
+        len(chunks),
+    )
+    return action
+
+
+def index_file(path: str | Path) -> Dict[str, int]:
+    Base.metadata.create_all(bind=engine)
+    ensure_database_schema()
+    counts = {"indexed_docs": 0, "updated_docs": 0, "skipped_docs": 0}
+
+    file_path = Path(path).resolve()
+    if not file_path.exists() or not file_path.is_file():
+        logger.warning("File not found: %s", file_path)
+        counts["skipped_docs"] += 1
+        return counts
+
+    if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        raise ValueError(f"Unsupported file type: {file_path.suffix.lower()}")
+
+    with SessionLocal() as session:
+        action = _index_single_file(session, file_path)
+
+    if action in {"updated", "metadata"}:
+        counts["updated_docs"] += 1
+    elif action == "skipped":
+        counts["skipped_docs"] += 1
+    else:
+        counts["indexed_docs"] += 1
+    return counts
+
+
 def index_path(path: str) -> Dict[str, int]:
     Base.metadata.create_all(bind=engine)
     ensure_database_schema()
@@ -262,57 +340,13 @@ def index_path(path: str) -> Dict[str, int]:
     with SessionLocal() as session:
         for file_path in _iter_files(root):
             try:
-                checksum = _file_checksum(file_path)
-                doc, action = _upsert_doc(session, file_path, checksum)
-                if action == "skipped":
-                    counts["skipped_docs"] += 1
-                    session.commit()
-                    continue
-
-                content = normalize_whitespace(_extract_text(file_path))
-                if not content:
-                    logger.warning("No extractable text in %s", file_path)
-                    session.rollback()
-                    counts["skipped_docs"] += 1
-                    continue
-
-                doc.description = _generate_description(doc.title, doc.file_type, content)
-
-                if action == "metadata":
-                    session.commit()
+                action = _index_single_file(session, file_path)
+                if action in {"updated", "metadata"}:
                     counts["updated_docs"] += 1
-                    logger.info("Refreshed metadata for %s", file_path.name)
-                    continue
-
-                if action == "updated":
-                    session.query(Chunk).filter(Chunk.doc_id == doc.id).delete(
-                        synchronize_session=False
-                    )
-
-                chunks = chunk_text(content)
-                if not chunks:
-                    logger.warning("No chunks produced for %s", file_path)
-                    session.rollback()
+                elif action == "skipped":
                     counts["skipped_docs"] += 1
-                    continue
-
-                for index, chunk in enumerate(chunks):
-                    session.add(
-                        Chunk(
-                            doc_id=doc.id,
-                            chunk_index=index,
-                            content=chunk,
-                        )
-                    )
-
-                session.commit()
-                counts["updated_docs" if action == "updated" else "indexed_docs"] += 1
-                logger.info(
-                    "Indexed %s as %s with %s chunks",
-                    file_path.name,
-                    action,
-                    len(chunks),
-                )
+                else:
+                    counts["indexed_docs"] += 1
             except Exception as exc:
                 session.rollback()
                 counts["skipped_docs"] += 1

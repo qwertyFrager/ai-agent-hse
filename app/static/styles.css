@@ -30,6 +30,10 @@ body {
     linear-gradient(135deg, #f6f1e8 0%, #efe7da 100%);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 .page-shell {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
@@ -158,7 +162,10 @@ h2 {
 }
 
 textarea,
-input[type="number"] {
+input[type="number"],
+input[type="text"],
+input[type="password"],
+input[type="file"] {
   width: 100%;
   border: 1px solid rgba(31, 42, 44, 0.18);
   border-radius: var(--radius-md);
@@ -187,6 +194,7 @@ textarea {
 .primary-button,
 .secondary-button {
   border: 0;
+  margin: 5px;
   border-radius: 999px;
   padding: 14px 22px;
   font: inherit;
@@ -208,6 +216,13 @@ textarea {
 .primary-button:hover,
 .secondary-button:hover {
   transform: translateY(-1px);
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .status-pill {
@@ -232,7 +247,8 @@ textarea {
 }
 
 .source-card,
-.history-card {
+.history-card,
+.admin-doc-card {
   padding: 16px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
@@ -240,9 +256,13 @@ textarea {
 }
 
 .source-card h3,
-.history-card h3 {
+.history-card h3,
+.admin-doc-card h3 {
   margin: 0 0 6px;
   font-size: 1rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .meta {
@@ -257,6 +277,110 @@ textarea {
   border-radius: var(--radius-lg);
   padding: 18px;
   text-align: center;
+}
+
+.hidden {
+  display: none;
+}
+
+.stack-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.button-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.source-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.admin-docs-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.admin-doc-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.admin-doc-kicker {
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+
+.admin-doc-card .meta {
+  display: -webkit-box;
+  margin-bottom: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.admin-doc-summary-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.danger-button {
+  background: rgba(156, 58, 43, 0.12);
+  color: #8b2d21;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(23, 31, 32, 0.46);
+  backdrop-filter: blur(6px);
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-card {
+  width: min(760px, 100%);
+  max-height: min(88vh, 920px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.modal-card .meta,
+.modal-card .muted {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1100px) {
@@ -285,5 +409,9 @@ textarea {
 
   .input-inline {
     width: 100%;
+  }
+
+  .admin-docs-list {
+    grid-template-columns: 1fr;
   }
 }

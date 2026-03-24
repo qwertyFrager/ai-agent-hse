@@ -9,6 +9,8 @@ class AskRequest(BaseModel):
 
 
 class SourceItem(BaseModel):
+    doc_id: str
+    can_preview: bool
     title: str
     description: str
     file_path: str
@@ -49,8 +51,36 @@ class StatsResponse(BaseModel):
 
 
 class DocumentItem(BaseModel):
+    id: str
+    can_preview: bool
     title: str
     description: str
     file_path: str
     file_type: str
     updated_at: str
+
+
+class AdminLoginRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+
+class AdminSessionResponse(BaseModel):
+    enabled: bool
+    authenticated: bool
+    username: str = ""
+
+
+class AdminDocumentItem(BaseModel):
+    id: str
+    can_preview: bool
+    title: str
+    description: str
+    file_path: str
+    file_type: str
+    updated_at: str
+
+
+class AdminDocumentUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None

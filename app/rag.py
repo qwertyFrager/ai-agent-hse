@@ -5,6 +5,7 @@ from typing import List
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .file_access import can_preview_in_browser
 from .llm import chat_completion, llm_enabled
 from .models import Doc
 from .schemas import AskResponse, SourceItem
@@ -17,8 +18,10 @@ SEARCH_STOPWORDS = {
     "а",
     "в",
     "во",
+    "все",
     "где",
     "для",
+    "делать",
     "и",
     "или",
     "как",
@@ -29,6 +32,7 @@ SEARCH_STOPWORDS = {
     "ли",
     "мне",
     "на",
+    "надо",
     "не",
     "нужно",
     "о",
@@ -39,9 +43,23 @@ SEARCH_STOPWORDS = {
     "проходит",
     "проходят",
     "проходить",
+    "с",
+    "со",
+    "хочу",
     "что",
     "это",
 }
+
+
+def _normalize_search_token(token: str) -> str:
+    token = token.lower().strip(".")
+    if token.startswith("перев"):
+        return "перевод"
+    if token.startswith("поступ"):
+        return "поступление"
+    if token.startswith("академ"):
+        return "академический"
+    return token
 
 
 def _build_context(rows) -> str:
@@ -66,6 +84,8 @@ def _rows_to_sources(rows) -> List[SourceItem]:
     for row in rows:
         sources.append(
             SourceItem(
+                doc_id=row["doc_id"],
+                can_preview=can_preview_in_browser(row["file_path"]),
                 title=row["title"],
                 description=row["description"],
                 file_path=row["file_path"],
@@ -92,12 +112,19 @@ def _search_queries(question: str) -> List[str]:
     queries = [normalize_whitespace(question)]
     tokens = re.findall(r"[0-9A-Za-zА-Яа-я.]+", question.lower())
     filtered = [
-        token
+        _normalize_search_token(token)
         for token in tokens
         if token not in SEARCH_STOPWORDS and (len(token) > 2 or "." in token)
     ]
     if filtered:
         queries.append(" ".join(filtered[:8]))
+
+    if "перевод" in filtered:
+        queries.extend(["перевод", "порядок перевода", "перевод студентов"])
+
+    for token in filtered:
+        if len(token) >= 4:
+            queries.append(token)
 
     seen = set()
     result = []

@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy import text
 
 
@@ -5,6 +7,7 @@ FTS_QUERY = text(
     """
     SELECT
         c.id,
+        d.id::text AS doc_id,
         c.chunk_index,
         c.content,
         d.title,
@@ -28,6 +31,7 @@ LIKE_QUERY = text(
     """
     SELECT
         c.id,
+        d.id::text AS doc_id,
         c.chunk_index,
         c.content,
         d.title,
@@ -59,7 +63,31 @@ def search_chunks(session, query: str, top_k: int = 8):
         return rows
 
     pattern = f"%{cleaned_query.lower()}%"
-    return session.execute(
+    rows = session.execute(
         LIKE_QUERY,
         {"pattern": pattern, "top_k": top_k},
     ).mappings().all()
+    if rows:
+        return rows
+
+    tokens = [
+        token
+        for token in re.findall(r"[0-9A-Za-zА-Яа-я.]+", cleaned_query.lower())
+        if len(token) >= 4
+    ]
+    merged = {}
+    for token in tokens[:6]:
+        token_rows = session.execute(
+            LIKE_QUERY,
+            {"pattern": f"%{token}%", "top_k": top_k},
+        ).mappings().all()
+        for row in token_rows:
+            key = (row["doc_id"], row["chunk_index"])
+            if key not in merged:
+                candidate = dict(row)
+                candidate["rank"] = 1.0
+                merged[key] = candidate
+            else:
+                merged[key]["rank"] += 1.0
+
+    return sorted(merged.values(), key=lambda item: item["rank"], reverse=True)[:top_k]

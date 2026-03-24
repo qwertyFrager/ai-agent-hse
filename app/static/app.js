@@ -6,8 +6,17 @@ const answerEl = document.getElementById("answer");
 const answerStatusEl = document.getElementById("answer-status");
 const reindexStatusEl = document.getElementById("reindex-status");
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function renderEmpty(container, text) {
-  container.innerHTML = `<div class="empty-state">${text}</div>`;
+  container.innerHTML = `<div class="empty-state">${escapeHtml(text)}</div>`;
 }
 
 function renderStats(stats) {
@@ -60,11 +69,30 @@ function renderSources(sources) {
     .map(
       (source) => `
         <article class="source-card">
-          <h3>${source.title}</h3>
-          <p>${source.description || ""}</p>
-          <p class="meta">${source.file_path}</p>
-          <p class="meta">Фрагмент #${source.chunk_index}</p>
-          <p>${source.snippet}</p>
+          <h3>${escapeHtml(source.title)}</h3>
+          <p>${escapeHtml(source.description || "")}</p>
+          <p class="meta">${escapeHtml(source.file_path)}</p>
+          <p class="meta">Фрагмент #${escapeHtml(source.chunk_index)}</p>
+          <p>${escapeHtml(source.snippet)}</p>
+          <div class="source-actions">
+            ${source.can_preview
+              ? `
+            <a
+              class="secondary-button link-button"
+              href="/api/docs/${encodeURIComponent(source.doc_id)}/file"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Открыть документ
+            </a>`
+              : ""}
+            <a
+              class="secondary-button link-button"
+              href="/api/docs/${encodeURIComponent(source.doc_id)}/file?download=true"
+            >
+              Скачать
+            </a>
+          </div>
         </article>
       `,
     )
@@ -81,9 +109,28 @@ function renderDocs(items) {
     .map(
       (item) => `
         <article class="source-card">
-          <h3>${item.title}</h3>
-          <p class="meta">${item.file_type} • ${item.file_path}</p>
-          <p>${item.description}</p>
+          <h3>${escapeHtml(item.title)}</h3>
+          <p class="meta">${escapeHtml(item.file_type)} • ${escapeHtml(item.file_path)}</p>
+          <p>${escapeHtml(item.description)}</p>
+          <div class="source-actions">
+            ${item.can_preview
+              ? `
+            <a
+              class="secondary-button link-button"
+              href="/api/docs/${encodeURIComponent(item.id)}/file"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Открыть
+            </a>`
+              : ""}
+            <a
+              class="secondary-button link-button"
+              href="/api/docs/${encodeURIComponent(item.id)}/file?download=true"
+            >
+              Скачать
+            </a>
+          </div>
         </article>
       `,
     )
