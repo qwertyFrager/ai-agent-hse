@@ -16,19 +16,28 @@
 
 ## Быстрый старт
 
-1. Поднимите Postgres:
-   ```bash
-   docker compose up -d
-   ```
-2. Установите зависимости:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Создайте локальный `.env`:
+1. Создайте локальный `.env`:
    ```bash
    copy .env.example .env
    ```
-4. Запустите API:
+2. Если хотите запускать весь стек одной командой через Docker Compose:
+   ```bash
+   docker compose up --build
+   ```
+   Что поднимется:
+   - `postgres` - база данных
+   - `api` - FastAPI + встроенный веб-дашборд на `http://localhost:8000/`
+   - `bot` - Telegram-бот
+   Все Python-зависимости из `requirements.txt` устанавливаются внутри Docker-образа на этапе сборки.
+3. Если нужен локальный запуск без Docker, поднимите только Postgres:
+   ```bash
+   docker compose up -d postgres
+   ```
+4. Установите зависимости:
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Запустите API:
    ```bash
    uvicorn app.main:app --reload
    ```
@@ -101,6 +110,8 @@ http://localhost:8000/
 
 История запросов в дашборде хранится в памяти процесса и очищается после перезапуска приложения. Это сделано намеренно, чтобы не добавлять новые таблицы сверх `docs` и `chunks`.
 
+Отдельный контейнер для фронтенда не нужен: статические файлы дашборда уже обслуживаются сервисом `api`.
+
 ## Telegram-бот
 
 Добавьте токен в `.env`:
@@ -119,6 +130,12 @@ TELEGRAM_ALLOWED_CHAT_IDS=123456789,987654321
 
 ```bash
 python -m bot.main
+```
+
+Или вместе со всем стеком:
+
+```bash
+docker compose up --build
 ```
 
 Бот использует ту же логику поиска и ответа, что и HTTP API. При `AUTO_INDEX_ON_STARTUP=true` он тоже автоматически проверяет и индексирует `DATA_DIR` перед стартом polling.

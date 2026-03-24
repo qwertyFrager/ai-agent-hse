@@ -16,3 +16,5 @@ htmlcov/
 .coverage
 pgdata/
 *.log
+bot_runtime.out
+bot_runtime.err
